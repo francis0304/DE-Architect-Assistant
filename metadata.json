@@ -1,0 +1,5 @@
+{
+  "name": "Francis Solution Architect",
+  "description": "A flexible Data Engineering solution assistant that generates architectural diagrams and implementation plans based on dynamic source, target, and requirement inputs.",
+  "requestFramePermissions": []
+}
