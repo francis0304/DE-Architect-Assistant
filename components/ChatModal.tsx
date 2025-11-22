@@ -3,11 +3,13 @@ import { X, Send, Bot, User, Loader2, Settings2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ChatMessage } from '../types';
 import { getChatStream } from '../services/geminiService';
+import { useTheme } from '../context/ThemeContext';
 
 interface ChatModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
   context: string;
+  isPage?: boolean;
 }
 
 const MODELS = [
@@ -15,12 +17,13 @@ const MODELS = [
   { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro (Reasoning)' },
 ];
 
-export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }) => {
+export const ChatModal: React.FC<ChatModalProps> = ({ isOpen = false, onClose, context, isPage = false }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -62,20 +65,26 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }
     }
   };
 
-  if (!isOpen) return null;
+  if (!isPage && !isOpen) return null;
+
+  const containerClasses = isPage 
+    ? "w-full h-full flex flex-col bg-white rounded-xl shadow-sm border border-slate-200"
+    : "bg-white w-full sm:w-[600px] h-[80vh] sm:h-[700px] shadow-2xl rounded-t-2xl sm:rounded-2xl flex flex-col pointer-events-auto transform transition-all animate-in slide-in-from-bottom-4 border border-slate-200";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
+    <div className={isPage ? "h-full" : "fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none"}>
+      {/* Backdrop - only for modal */}
+      {!isPage && (
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
+      )}
       
-      {/* Modal Window */}
-      <div className="bg-white w-full sm:w-[600px] h-[80vh] sm:h-[700px] shadow-2xl rounded-t-2xl sm:rounded-2xl flex flex-col pointer-events-auto transform transition-all animate-in slide-in-from-bottom-4 border border-slate-200">
+      {/* Main Container */}
+      <div className={containerClasses}>
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+        <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-lg">
+            <div className={`bg-${theme}-600 p-2 rounded-lg`}>
                 <Bot className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -88,7 +97,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }
                 <select 
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
-                    className="appearance-none pl-8 pr-4 py-1.5 text-xs font-medium border border-slate-300 rounded-full bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer hover:bg-slate-50"
+                    className={`appearance-none pl-8 pr-4 py-1.5 text-xs font-medium border border-slate-300 rounded-full bg-white focus:ring-2 focus:ring-${theme}-500 outline-none cursor-pointer hover:bg-slate-50`}
                 >
                     {MODELS.map(m => (
                         <option key={m.id} value={m.id}>{m.name}</option>
@@ -96,9 +105,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }
                 </select>
                 <Settings2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 pointer-events-none" />
             </div>
-            <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
-                <X className="w-5 h-5" />
-            </button>
+            {!isPage && onClose && (
+              <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
+                  <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -113,13 +124,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }
             
             {messages.map((msg, index) => (
                 <div key={index} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-200' : 'bg-indigo-100'}`}>
-                        {msg.role === 'user' ? <User className="w-5 h-5 text-slate-600" /> : <Bot className="w-5 h-5 text-indigo-600" />}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-200' : `bg-${theme}-100`}`}>
+                        {msg.role === 'user' ? <User className="w-5 h-5 text-slate-600" /> : <Bot className={`w-5 h-5 text-${theme}-600`} />}
                     </div>
                     <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
                         msg.role === 'user' 
                         ? 'bg-white text-slate-800 border border-slate-200 rounded-tr-sm' 
-                        : 'bg-indigo-600 text-white rounded-tl-sm'
+                        : `bg-${theme}-600 text-white rounded-tl-sm`
                     }`}>
                         {msg.role === 'user' ? (
                             msg.text
@@ -133,8 +144,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }
             ))}
             {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
                 <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                        <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
+                    <div className={`w-8 h-8 rounded-full bg-${theme}-100 flex items-center justify-center shrink-0`}>
+                        <Loader2 className={`w-5 h-5 text-${theme}-600 animate-spin`} />
                     </div>
                 </div>
             )}
@@ -142,7 +153,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-white border-t border-slate-200 rounded-b-2xl">
+        <div className="p-4 bg-white border-t border-slate-200 rounded-b-xl">
             <div className="flex gap-2 relative">
                 <input
                     type="text"
@@ -150,14 +161,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, context }
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                     placeholder="Ask a follow-up question..."
-                    className="flex-1 pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
+                    className={`flex-1 pl-4 pr-12 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-${theme}-500 focus:border-${theme}-500 outline-none transition-all text-sm`}
                     disabled={isLoading}
                     autoFocus
                 />
                 <button
                     onClick={handleSend}
                     disabled={!input.trim() || isLoading}
-                    className="absolute right-2 top-2 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors"
+                    className={`absolute right-2 top-2 p-1.5 bg-${theme}-600 text-white rounded-lg hover:bg-${theme}-700 disabled:opacity-50 disabled:hover:bg-${theme}-600 transition-colors`}
                 >
                     <Send className="w-4 h-4" />
                 </button>

@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Mermaid } from './Mermaid';
 import { ChevronDown } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 interface MarkdownRendererProps {
   content: string;
@@ -10,6 +11,7 @@ interface MarkdownRendererProps {
 
 const CollapsibleSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { theme } = useTheme();
 
   return (
     <div className="my-4 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white not-prose">
@@ -17,10 +19,10 @@ const CollapsibleSection: React.FC<{ title: string; children: React.ReactNode }>
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 transition-all text-left group cursor-pointer select-none"
       >
-        <h2 className="text-lg font-bold text-slate-800 m-0 group-hover:text-indigo-700 transition-colors">
+        <h2 className={`text-lg font-bold text-slate-800 m-0 group-hover:text-${theme}-700 transition-colors`}>
           {title}
         </h2>
-        <div className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} text-slate-400 group-hover:text-indigo-600`}>
+        <div className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} text-slate-400 group-hover:text-${theme}-600`}>
             <ChevronDown className="w-5 h-5" />
         </div>
       </button>
@@ -35,6 +37,8 @@ const CollapsibleSection: React.FC<{ title: string; children: React.ReactNode }>
 };
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
+  const { theme } = useTheme();
+
   const components = {
     // Custom list handling for better nesting support and visual separation
     ul: ({ node, className, ...props }: any) => (
@@ -94,7 +98,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
   const sections = content.split(/(?=^# )/gm);
 
   return (
-    <div className="prose prose-slate max-w-none prose-headings:font-semibold prose-headings:text-slate-800 prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-a:text-blue-600 prose-pre:bg-slate-900 prose-pre:text-slate-50 prose-blockquote:border-l-indigo-500 prose-blockquote:bg-indigo-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:not-italic prose-blockquote:rounded-r-lg">
+    <div className={`prose prose-slate max-w-none prose-headings:font-semibold prose-headings:text-slate-800 prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-a:text-blue-600 prose-pre:bg-slate-900 prose-pre:text-slate-50 prose-blockquote:border-l-${theme}-500 prose-blockquote:bg-${theme}-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:not-italic prose-blockquote:rounded-r-lg`}>
       {sections.map((section, index) => {
         const trimmed = section.trim();
         if (!trimmed) return null;

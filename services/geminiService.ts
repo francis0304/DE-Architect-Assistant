@@ -1,5 +1,5 @@
-import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
-import { DeRequestState, ChatMessage } from "../types";
+import { GoogleGenAI, Chat, GenerateContentResponse, Type } from "@google/genai";
+import { DeRequestState, ChatMessage, DataSource, DataTarget, Connection, TransformationNode } from "../types";
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
@@ -35,6 +35,8 @@ Do NOT generate any Mermaid diagrams, charts, or visual graphs. Focus solely on 
     if (source) return `Source: ${source.name}`;
     const target = data.dataTargets.find(t => t.id === id);
     if (target) return `Target: ${target.name}`;
+    const trans = data.transformationNodes.find(t => t.id === id);
+    if (trans) return `Transform: ${trans.name}`;
     return "Unknown Node";
   };
 
@@ -67,14 +69,21 @@ ${data.dataSources.map((s, i) => `
   - Frequency: ${s.frequency || "N/A"}
 `).join("")}
 
-### 4. Data Targets
+### 4. Transformation / Processing Nodes
+${data.transformationNodes.map((t, i) => `
+- **Process ${i + 1}**: ${t.name} (ID: ${t.id})
+  - Engine/Type: ${t.processingType}
+  - Logic: ${t.description}
+`).join("")}
+
+### 5. Data Targets
 ${data.dataTargets.map((t, i) => `
 - **Target ${i + 1}**: ${t.name} (ID: ${t.id})
   - Storage: ${t.storageFormat}
   - Partitioning: ${t.partitioning}
 `).join("")}
 
-### 5. Data Flow / Connections
+### 6. Data Flow / Connections
 ${connectionDescription}
 
 ---
@@ -115,6 +124,154 @@ ${includeDiagram ? `# Architecture Diagram
     return response.text;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
+    throw new Error(formatError(error));
+  }
+};
+
+export const generatePipelineLayout = async (requirements: string, existingTools: string[]): Promise<{
+  dataSources: DataSource[];
+  transformationNodes: TransformationNode[];
+  dataTargets: DataTarget[];
+  connections: Connection[];
+}> => {
+  if (!process.env.API_KEY) {
+    throw new Error("System Configuration Error: API_KEY is missing from environment variables.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const prompt = `You are a Data Engineering Architect helper. Analyze the following requirements and existing environment to create a preliminary pipeline structure.
+
+**Input Context:**
+- Requirements: "${requirements}"
+- Existing Tools/Systems: ${existingTools.length > 0 ? existingTools.join(", ") : "None provided"}
+
+**Task:**
+1. Identify appropriate **Data Sources** (input systems).
+2. Identify **Transformation Nodes** (intermediate processing steps like "Join Tables", "Clean Data", "Aggregate", "dbt Model").
+3. Identify **Data Targets** (output systems).
+4. If "Existing Tools" are listed and relevant, prioritize using them.
+5. Define logical connections between them (Source -> Transform -> Target).
+
+**Output Schema:**
+Return a JSON object strictly following the schema below.
+`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            dataSources: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  name: { type: Type.STRING, description: "Name of the system or DB" },
+                  database: { type: Type.STRING },
+                  schema: { type: Type.STRING },
+                  tables: { type: Type.STRING },
+                  dataType: { type: Type.STRING, description: "e.g. Relational, JSON, CSV" },
+                  volume: { type: Type.STRING },
+                  frequency: { type: Type.STRING },
+                },
+                required: ["id", "name"]
+              }
+            },
+            transformationNodes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  name: { type: Type.STRING, description: "Step Name e.g. 'Clean Customer Data'" },
+                  processingType: { type: Type.STRING, description: "e.g. dbt, Spark, SQL" },
+                  description: { type: Type.STRING, description: "What logic is applied here?" },
+                },
+                required: ["id", "name"]
+              }
+            },
+            dataTargets: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  name: { type: Type.STRING },
+                  storageFormat: { type: Type.STRING, description: "e.g. Parquet, Iceberg" },
+                  partitioning: { type: Type.STRING },
+                },
+                required: ["id", "name"]
+              }
+            },
+            connections: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  sourceId: { type: Type.STRING },
+                  targetId: { type: Type.STRING },
+                },
+                required: ["sourceId", "targetId"]
+              }
+            }
+          },
+          required: ["dataSources", "dataTargets", "connections"]
+        }
+      }
+    });
+
+    if (!response.text) {
+      throw new Error("No response from AI");
+    }
+
+    const result = JSON.parse(response.text);
+    
+    const safeSources: DataSource[] = (result.dataSources || []).map((s: any) => ({
+      id: s.id || crypto.randomUUID(),
+      name: s.name || "Unknown Source",
+      database: s.database || "",
+      schema: s.schema || "",
+      tables: s.tables || "",
+      dataType: s.dataType || "",
+      volume: s.volume || "",
+      frequency: s.frequency || "Daily",
+    }));
+
+    const safeTransforms: TransformationNode[] = (result.transformationNodes || []).map((t: any) => ({
+      id: t.id || crypto.randomUUID(),
+      name: t.name || "Processing Step",
+      processingType: t.processingType || "SQL",
+      description: t.description || ""
+    }));
+
+    const safeTargets: DataTarget[] = (result.dataTargets || []).map((t: any) => ({
+      id: t.id || crypto.randomUUID(),
+      name: t.name || "Unknown Target",
+      storageFormat: t.storageFormat || "",
+      partitioning: t.partitioning || "",
+    }));
+
+    const safeConnections: Connection[] = (result.connections || []).map((c: any) => ({
+      id: crypto.randomUUID(),
+      sourceId: c.sourceId,
+      targetId: c.targetId
+    }));
+
+    return {
+      dataSources: safeSources,
+      transformationNodes: safeTransforms,
+      dataTargets: safeTargets,
+      connections: safeConnections
+    };
+
+  } catch (error: any) {
+    console.error("Gemini Auto-Pipeline Error:", error);
     throw new Error(formatError(error));
   }
 };

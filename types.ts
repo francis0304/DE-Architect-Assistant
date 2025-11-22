@@ -15,6 +15,14 @@ export interface DataSource {
   position?: NodePosition;
 }
 
+export interface TransformationNode {
+  id: string;
+  name: string;
+  processingType: string; // e.g. "dbt", "Spark", "SQL View"
+  description: string; // e.g. "Join users and orders", "Filter PII"
+  position?: NodePosition;
+}
+
 export interface DataTarget {
   id: string;
   name: string;
@@ -34,6 +42,7 @@ export interface DeRequestState {
   productRequirements: string;
   existingTools: string[];
   dataSources: DataSource[];
+  transformationNodes: TransformationNode[];
   dataTargets: DataTarget[];
   connections: Connection[];
 }
